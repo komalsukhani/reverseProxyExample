@@ -11,17 +11,19 @@ import (
 )
 
 const (
-	TargetURL = "http://example.com"
-	TTL       = 30 * time.Second
-	Port      = 8080
+	UpstreamURL = "http://example.com"
+	Port        = 8080
+
+	CacheTTL     = 30 * time.Second
+	MaxCacheSize = 1 * 1024 * 1024
 )
 
 func main() {
 	addr := fmt.Sprintf(":%d", Port)
 
 	p := internal.ReverseProxy{
-		TargetURL: TargetURL,
-		Cache:     internal.NewMemoryCache(TTL),
+		TargetURL: UpstreamURL,
+		Cache:     internal.NewMemoryCache(CacheTTL, MaxCacheSize),
 	}
 
 	slog.Info("Started server", "port", Port)
