@@ -10,7 +10,7 @@ import (
 func TestCacheMaxSize(t *testing.T) {
 	eval := is.New(t)
 
-	c := NewMemoryCache(30*time.Second, 100, 10)
+	c := NewMemoryCache(30*time.Second, 100, 100)
 
 	c.Set("1", &Record{
 		Body: []byte("12345"),
