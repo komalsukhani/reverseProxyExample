@@ -14,8 +14,9 @@ const (
 	UpstreamURL = "http://example.com"
 	Port        = 8080
 
-	CacheTTL     = 30 * time.Second
-	MaxCacheSize = 1 * 1024 * 1024
+	CacheTTL           = 30 * time.Second
+	MaxCacheSize       = 1 * 1024 * 1024
+	MaxCacheRecordSize = 1 * 1024
 )
 
 func main() {
@@ -23,7 +24,7 @@ func main() {
 
 	p := internal.ReverseProxy{
 		TargetURL: UpstreamURL,
-		Cache:     internal.NewMemoryCache(CacheTTL, MaxCacheSize),
+		Cache:     internal.NewMemoryCache(CacheTTL, MaxCacheSize, MaxCacheRecordSize),
 	}
 
 	slog.Info("Started server", "port", Port)

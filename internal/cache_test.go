@@ -10,31 +10,50 @@ import (
 func TestCacheMaxSize(t *testing.T) {
 	eval := is.New(t)
 
-	c := NewMemoryCache(30*time.Second, 10)
+	c := NewMemoryCache(30*time.Second, 100, 10)
 
-	err := c.Set("1", &Record{
+	c.Set("1", &Record{
 		Body: []byte("12345"),
 	})
-	eval.NoErr(err)
+	eval.Equal(c.Count(), 1)
+	eval.Equal(c.remainingCapacity, 55)
 
-	err = c.Set("1", &Record{
+	c.Set("1", &Record{
 		Body: []byte("123456"),
 	})
-	eval.NoErr(err)
+	eval.Equal(c.Count(), 1)
+	eval.Equal(c.remainingCapacity, 54)
 
-	err = c.Set("2", &Record{
+	c.Set("2", &Record{
 		Body: []byte("1234"),
 	})
 
-	eval.True(err == ErrCacheFull)
+	eval.Equal(c.Count(), 2)
+	eval.Equal(c.remainingCapacity, 10)
 
-	time.Sleep(30 * time.Second)
+	//one record will be removed as capacity is 10
+	c.Set("3", &Record{
+		Body: []byte("123456"),
+	})
 
-	//this is needed to remove expired record
-	c.Get("1")
+	eval.Equal(c.Count(), 2)
+	eval.Equal(c.remainingCapacity, 10)
+}
 
-	err = c.Set("2", &Record{
-		Body: []byte("1234"),
+func TestCacheMaxRecordSize(t *testing.T) {
+	eval := is.New(t)
+
+	c := NewMemoryCache(30*time.Second, 100, 10)
+
+	err := c.Set("1", &Record{
+		Body: []byte("1234567890"),
+	})
+	eval.Equal(err, ErrMaxRecordSizeExceed)
+
+	c = NewMemoryCache(30*time.Second, 100, 100)
+
+	err = c.Set("1", &Record{
+		Body: []byte("1234567890"),
 	})
 	eval.NoErr(err)
 }

@@ -66,7 +66,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	rw.Write(body)
 
-	//only cache get request
+	//only cache get requests
 	if r.Method == http.MethodGet && resp.StatusCode == http.StatusOK {
 		record := Record{
 			StatusCode: resp.StatusCode,
@@ -75,10 +75,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		key := getCacheKey(r)
-
 		if err := p.Cache.Set(key, &record); err != nil {
-			//even if cache update failed, request will still be served by upstream
-			slog.Debug("failed to update cache", "error", err)
+			slog.Debug("failed to cache request", "error", err)
 		}
 	}
 

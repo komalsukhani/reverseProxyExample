@@ -1,21 +1,24 @@
 package internal
 
 import (
+	"container/list"
 	"errors"
 	"net/http"
 	"sync"
 	"time"
 )
 
-var ErrCacheFull = errors.New("memory cache is full")
+var ErrMaxRecordSizeExceed = errors.New("request exceeds max record size")
 
-// TODO: Remove expired entries if size is full
 type MemoryCache struct {
 	mu                sync.RWMutex
 	records           map[string]*Record
 	ttl               time.Duration
-	maxSize           int
+	maxCacheSize      int
+	maxRecordSize     int
 	remainingCapacity int
+
+	ll *list.List
 }
 
 type Record struct {
@@ -26,12 +29,14 @@ type Record struct {
 	size       int
 }
 
-func NewMemoryCache(ttl time.Duration, maxSize int) *MemoryCache {
+func NewMemoryCache(ttl time.Duration, maxSize, maxRecordSize int) *MemoryCache {
 	return &MemoryCache{
 		records:           make(map[string]*Record),
 		ttl:               ttl,
-		maxSize:           maxSize,
+		maxCacheSize:      maxSize,
+		maxRecordSize:     maxRecordSize,
 		remainingCapacity: maxSize,
+		ll:                list.New(),
 	}
 }
 
@@ -49,8 +54,12 @@ func (cache *MemoryCache) Get(k string) *Record {
 		cache.remainingCapacity += r.size
 		delete(cache.records, k)
 
+		cache.ll.Remove(&list.Element{Value: k})
+
 		return nil
 	}
+
+	cache.ll.MoveToFront(&list.Element{Value: k})
 
 	return r
 }
@@ -59,30 +68,37 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	data.size = len(data.Body)
+	data.size = data.Calsize()
+
+	//not caching request if it exceeds maxRequestSize limit
+	if data.size > cache.maxRecordSize {
+		return ErrMaxRecordSizeExceed
+	}
 
 	existingRecord, ok := cache.records[k]
-	if !ok {
-		//skipping entry in cache as cache has reached it's limit
-		if data.size > cache.remainingCapacity {
-			return ErrCacheFull
-		}
-
-		cache.remainingCapacity -= data.size
-	} else {
+	if ok {
 		oldSize := existingRecord.size
-
-		//skipping entry in cache as cache has reached it's limit
-		if cache.remainingCapacity+data.size-oldSize > cache.maxSize {
-			return ErrCacheFull
-		}
-
-		cache.remainingCapacity = +data.size - oldSize
+		cache.remainingCapacity += oldSize
 	}
+
+	//keep deleting old entry in cache as cache has reached it's limit
+	for data.size > cache.remainingCapacity {
+		oldest := cache.ll.Back()
+		oldestRecordKey := oldest.Value.(string)
+
+		oldestRecord := cache.records[oldestRecordKey]
+		cache.remainingCapacity += oldestRecord.size
+		delete(cache.records, oldestRecordKey)
+
+		cache.ll.Remove(oldest)
+	}
+
+	cache.remainingCapacity -= data.size
 
 	data.expiry = time.Now().Add(cache.ttl)
 
 	cache.records[k] = data
+	cache.ll.PushFront(k)
 
 	return nil
 }
@@ -92,4 +108,18 @@ func (cache *MemoryCache) Count() int {
 	defer cache.mu.Unlock()
 
 	return len(cache.records)
+}
+
+func (r *Record) Calsize() int {
+	size := 40 // accounting for 2 int variables and one time.Time field
+
+	for k, vals := range r.Headers {
+		size += len(k)
+		for _, v := range vals {
+			size += len(v)
+		}
+	}
+	size += len(r.Body)
+
+	return size
 }
