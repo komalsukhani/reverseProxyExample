@@ -9,48 +9,53 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"github.com/kelseyhightower/envconfig"
+	"github.com/komaldsukhani/reverseproxyexample/internal/config"
 	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 	rproxy "github.com/komaldsukhani/reverseproxyexample/internal/reverseproxy"
 )
 
 const (
-	UpstreamURL     = "http://example.com"
-	Port            = 8080
-	ShutdownTimeout = 10 * time.Second
-
-	CacheTTL           = 30 * time.Second
-	MaxCacheSize       = 1 * 1024 * 1024
-	MaxCacheRecordSize = 1 * 1024
+	UpstreamURL = "http://example.com"
 )
 
 func main() {
-	addr := fmt.Sprintf(":%d", Port)
+	var config config.Config
+
+	if err := readConfig(&config); err != nil {
+		slog.Error("failed to read config", "err", err)
+
+		return
+	}
+
+	setupLogger(&config)
+	slog.Debug("Configured logger", "loglevel", config.LogLevel)
+
+	addr := fmt.Sprintf(":%d", config.Proxy.ListenPort)
 
 	p := rproxy.ReverseProxy{
 		TargetURL: UpstreamURL,
-		Cache:     memcache.NewMemoryCache(CacheTTL, MaxCacheSize, MaxCacheRecordSize),
+		Cache:     memcache.NewMemoryCache(config.Cache.TTL, config.Cache.MaxSize, config.Cache.MaxRecordSize),
 	}
 
 	srv := http.Server{
-		Addr: addr,
+		Addr:    addr,
+		Handler: &p,
 	}
 
 	go func() {
-		slog.Info("Started server", "port", Port)
+		slog.Info("Started server", "addr", srv.Addr)
 
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Fatalf("failed to start server: %v", err)
 		}
-
-		log.Fatal(http.ListenAndServe(addr, &p))
 	}()
 
-	gracefulShutdown(&srv)
+	gracefulShutdown(&srv, &config)
 }
 
-func gracefulShutdown(srv *http.Server) {
+func gracefulShutdown(srv *http.Server, config *config.Config) {
 	var quit = make(chan os.Signal, 1)
 
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -59,10 +64,40 @@ func gracefulShutdown(srv *http.Server) {
 
 	slog.Info("Shutting down the server")
 
-	ctx, cancel := context.WithTimeout(context.Background(), ShutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Proxy.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("failed to shutdown the server: %v", err)
 	}
+}
+
+func readConfig(config *config.Config) error {
+	if err := envconfig.Process("", config); err != nil {
+		slog.Error("failed to read config", "error", err)
+
+		return err
+	}
+
+	config.SetDefaults()
+
+	return nil
+}
+
+func setupLogger(config *config.Config) {
+	var level slog.Level
+
+	switch config.LogLevel {
+	case "debug":
+		level = slog.LevelDebug
+	case "error":
+		level = slog.LevelError
+	case "warn":
+		level = slog.LevelWarn
+	case "info":
+		level = slog.LevelInfo
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	slog.SetDefault(logger)
 }
