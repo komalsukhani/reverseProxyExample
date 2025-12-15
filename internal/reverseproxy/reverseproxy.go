@@ -1,15 +1,17 @@
-package internal
+package reverseproxy
 
 import (
 	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
+
+	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 )
 
 type ReverseProxy struct {
 	TargetURL string
-	Cache     *MemoryCache
+	Cache     *memcache.MemoryCache
 }
 
 func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -68,7 +70,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	//only cache get requests
 	if r.Method == http.MethodGet && resp.StatusCode == http.StatusOK {
-		record := Record{
+		record := memcache.Record{
 			StatusCode: resp.StatusCode,
 			Body:       bytes.Clone(body),
 			Headers:    r.Header.Clone(),

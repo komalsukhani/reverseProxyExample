@@ -11,7 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/komaldsukhani/reverseproxyexample/internal"
+	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
+	rproxy "github.com/komaldsukhani/reverseproxyexample/internal/reverseproxy"
 )
 
 const (
@@ -27,9 +28,9 @@ const (
 func main() {
 	addr := fmt.Sprintf(":%d", Port)
 
-	p := internal.ReverseProxy{
+	p := rproxy.ReverseProxy{
 		TargetURL: UpstreamURL,
-		Cache:     internal.NewMemoryCache(CacheTTL, MaxCacheSize, MaxCacheRecordSize),
+		Cache:     memcache.NewMemoryCache(CacheTTL, MaxCacheSize, MaxCacheRecordSize),
 	}
 
 	srv := http.Server{

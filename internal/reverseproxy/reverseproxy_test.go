@@ -1,4 +1,4 @@
-package internal
+package reverseproxy
 
 import (
 	"io"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 	"github.com/matryer/is"
 )
 
@@ -25,7 +26,7 @@ func TestCachedRequest(t *testing.T) {
 
 	rproxy := ReverseProxy{
 		TargetURL: srv.URL,
-		Cache:     NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
+		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
 	}
 
 	proxysrv := httptest.NewServer(&rproxy)
@@ -64,7 +65,7 @@ func TestCacheNonSupportedMethods(t *testing.T) {
 
 	rproxy := ReverseProxy{
 		TargetURL: srv.URL,
-		Cache:     NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
+		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
 	}
 
 	proxysrv := httptest.NewServer(&rproxy)
@@ -92,7 +93,7 @@ func TestCachedNonSupportedResponseCode(t *testing.T) {
 
 	rproxy := ReverseProxy{
 		TargetURL: srv.URL,
-		Cache:     NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
+		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
 	}
 
 	proxysrv := httptest.NewServer(&rproxy)
@@ -118,7 +119,7 @@ func TestCacheTTL(t *testing.T) {
 
 	rproxy := ReverseProxy{
 		TargetURL: srv.URL,
-		Cache:     NewMemoryCache(30*time.Second, 1*1024*1024, 1024),
+		Cache:     memcache.NewMemoryCache(30*time.Second, 1*1024*1024, 1024),
 	}
 
 	proxysrv := httptest.NewServer(&rproxy)
