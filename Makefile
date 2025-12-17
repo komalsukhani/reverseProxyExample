@@ -1,0 +1,33 @@
+# Makefile for reverseProxyExample
+
+BINARY=./bin/reverseproxy
+CMD=./cmd/reverseproxy
+
+.PHONY: all build run run-bin test test-verbose fmt vet coverage clean help
+
+all: build
+
+build:
+	@mkdir -p ./bin
+	go build -o $(BINARY) $(CMD)
+
+run:
+	go run $(CMD)
+
+run-bin: build
+	$(BINARY)
+
+test:
+	go test ./...
+
+fmt:
+	gofmt -w .
+
+vet:
+	go vet ./...
+
+clean:
+	rm -rf ./bin coverage.out
+
+help:
+	@echo "Available targets: build run run-bin test fmt vet clean"

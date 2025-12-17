@@ -5,13 +5,13 @@
 - Run the server locally:
 
 ```bash
-go run ./main.go
+make run
 ```
 
 - Run the server with example environment variables:
 
 ```bash
-LOGLEVEL=debug PROXY_LISTENPORT=9090 CACHE_TTL=30s go run ./main.go
+LOGLEVEL=debug PROXY_LISTENPORT=9090 CACHE_TTL=30s make run
 ```
 
 ## How to run tests
@@ -19,7 +19,7 @@ LOGLEVEL=debug PROXY_LISTENPORT=9090 CACHE_TTL=30s go run ./main.go
 - Run the unit test suite:
 
 ```bash
-go test ./...
+make test
 ```
 
 ## Configuration (environment variables)
