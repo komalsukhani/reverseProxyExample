@@ -38,7 +38,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	outreq, err := http.NewRequest(r.Method, "", r.Body)
+	outreq, err := http.NewRequestWithContext(r.Context(), r.Method, "", r.Body)
 	if err != nil {
 		slog.Error("failed to create new http request", "error", err)
 
