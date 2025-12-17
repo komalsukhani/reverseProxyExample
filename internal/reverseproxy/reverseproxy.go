@@ -80,8 +80,6 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rw.WriteHeader(resp.StatusCode)
-
 	removeHopByHopHeaders(resp.Header)
 
 	for h, vals := range resp.Header {
@@ -90,10 +88,11 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	rw.WriteHeader(resp.StatusCode)
+
 	if _, err := rw.Write(body); err != nil {
 		slog.Error("failed to write response body", "error", err)
 
-		http.Error(rw, "failed to handle request", http.StatusBadGateway)
 		return
 	}
 
