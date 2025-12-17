@@ -34,5 +34,5 @@ The table below lists supported environment variables, their type, default value
 | `CACHE_TTL` | duration | `30s` | Time-to-live for cached records |
 | `CACHE_MAXSIZE` | int (bytes) | `1048576` | Total cache capacity in bytes (1 MB) |
 | `CACHE_MAXRECORDSIZE` | int (bytes) | `1024` | Maximum allowed size per cached record in bytes |
+| `PROXY_TARGETURL` | string | `http://httpbin.org` | Upstream target URL used by the proxy |
 
-**Note:** The upstream target is hard-coded in `main.go` (`UpstreamURL`) and is not configurable via environment variables in the current implementation.
