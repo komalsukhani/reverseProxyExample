@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ func TestCachedRequest(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&upstreamCalls, 1)
+		w.Header().Add("Upstream", "true")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Hello World"))
 	}))
@@ -47,11 +49,29 @@ func TestCachedRequest(t *testing.T) {
 	body2, err = io.ReadAll(resp2.Body)
 	defer resp2.Body.Close()
 	eval.NoErr(err)
+	eval.True(compareHeaders(t, resp1.Header, resp2.Header))
 
 	eval.Equal(resp1.StatusCode, resp2.StatusCode)
 	eval.Equal(body1, body2)
 
 	eval.Equal(atomic.LoadInt32(&upstreamCalls), int32(1))
+}
+
+func compareHeaders(t *testing.T, h1, h2 http.Header) bool {
+	if !(len(h1) == len(h2)) {
+		return false
+	}
+
+	for h, vals := range h1 {
+		for _, v := range vals {
+			if !(slices.Contains(h2[h], v)) {
+				t.Logf("Header mismatch for %s: %v vs %v", h, h1[h], h2[h])
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func TestCacheNonSupportedMethods(t *testing.T) {

@@ -22,13 +22,16 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		cachedResp := p.Cache.Get(key)
 		if cachedResp != nil {
 			slog.Debug("Request served from the cache")
-			rw.Write(cachedResp.Body)
 
 			for h, vals := range cachedResp.Headers {
 				for _, v := range vals {
 					rw.Header().Add(h, v)
 				}
 			}
+
+			rw.WriteHeader(cachedResp.StatusCode)
+
+			rw.Write(cachedResp.Body)
 
 			return
 		}
