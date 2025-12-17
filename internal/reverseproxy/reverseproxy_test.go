@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -154,4 +155,30 @@ func TestCacheTTL(t *testing.T) {
 	eval.NoErr(err)
 
 	eval.Equal(atomic.LoadInt32(&upstreamCalls), int32(2))
+}
+
+func TestJoinURL(t *testing.T) {
+	eval := is.New(t)
+
+	testcases := map[string]struct {
+		targetURL string
+		reqPath   string
+		wantFinal string
+	}{
+		"trailing slash in target url":                                   {"http://example.com/api/", "users", "http://example.com/api/users"},
+		"trailing slash in target url and leading slash in request path": {"http://example.com/api/", "/users", "http://example.com/api/users"},
+		"without query parameters":                                       {"http://example.com/api", "/users", "http://example.com/api/users"},
+		"query parameters in target url":                                 {"http://example.com/api?a=test", "users", "http://example.com/api/users?a=test"},
+		"query parameters in request path and target url":                {"http://example.com/api?a=test", "users?b=test", "http://example.com/api/users?a=test&b=test"},
+		"query parameters in request path":                               {"http://example.com/api/", "/users?a=test", "http://example.com/api/users?a=test"},
+		"request path with special characters":                           {"http://example.com/api", "foo%2Fbar", "http://example.com/api/foo%2Fbar"},
+	}
+
+	for _, tc := range testcases {
+		reqURL, err := url.Parse(tc.reqPath)
+		eval.NoErr(err)
+		u := joinURL(reqURL, tc.targetURL)
+
+		eval.Equal(u.String(), tc.wantFinal)
+	}
 }

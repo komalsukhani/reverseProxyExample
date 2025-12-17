@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
@@ -37,13 +38,14 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	outreq, err := http.NewRequest(r.Method, p.TargetURL+r.URL.RequestURI(), r.Body)
+	outreq, err := http.NewRequest(r.Method, "", r.Body)
 	if err != nil {
 		slog.Error("failed to create new http request", "error", err)
 
 		http.Error(rw, "failed to handle request", http.StatusBadGateway)
 		return
 	}
+	outreq.URL = joinURL(r.URL, p.TargetURL)
 
 	outreq.Header = r.Header.Clone()
 
@@ -96,6 +98,38 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 func getCacheKey(r *http.Request) string {
 	return r.Method + ":" + r.URL.String()
+}
+
+func joinURL(req *url.URL, targetURL string) *url.URL {
+	var joinedURL url.URL
+
+	parsedURL, err := url.Parse(targetURL)
+	if err != nil {
+		return nil
+	}
+
+	joinedURL.Host = parsedURL.Host
+	joinedURL.Scheme = parsedURL.Scheme
+
+	if parsedURL.RawPath == "" && req.RawPath == "" {
+		joinedURL.Path = strings.TrimRight(parsedURL.Path, "/") + "/" + strings.TrimLeft(req.Path, "/")
+		joinedURL.RawPath = ""
+	} else {
+		joinedURL.Path = strings.TrimRight(parsedURL.Path, "/") + "/" + strings.TrimLeft(req.Path, "/")
+
+		escapedTargetPath := parsedURL.EscapedPath()
+		escapedReqPath := req.EscapedPath()
+
+		joinedURL.RawPath = strings.TrimRight(escapedTargetPath, "/") + "/" + strings.TrimLeft(escapedReqPath, "/")
+	}
+
+	if parsedURL.RawQuery == "" || req.RawQuery == "" {
+		joinedURL.RawQuery = parsedURL.RawQuery + req.RawQuery
+	} else {
+		joinedURL.RawQuery = parsedURL.RawQuery + "&" + req.RawQuery
+	}
+
+	return &joinedURL
 }
 
 var hopByHopHeaders = []string{
