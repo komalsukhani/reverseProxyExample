@@ -7,7 +7,7 @@ const (
 	DefaultListenPort      = 8080
 	DefaultShutdownTimeout = 10 * time.Second
 
-	DefaultCacheTTL           = 30 * time.Second
+	DefaultCacheTTL           = 1 * time.Minute
 	DefaultMaxCacheSize       = 1 * 1024 * 1024
 	DefaultMaxCacheRecordSize = 1 * 1024
 )
