@@ -27,6 +27,8 @@ type Record struct {
 	Headers    http.Header
 	expiry     time.Time
 	size       int
+
+	linkedlistEle *list.Element
 }
 
 func NewMemoryCache(ttl time.Duration, maxSize, maxRecordSize int) *MemoryCache {
@@ -52,14 +54,13 @@ func (cache *MemoryCache) Get(k string) *Record {
 	//If the record has expired, delete it from the cache
 	if time.Now().After(r.expiry) {
 		cache.remainingCapacity += r.size
+		cache.ll.Remove(r.linkedlistEle)
 		delete(cache.records, k)
-
-		cache.ll.Remove(&list.Element{Value: k})
 
 		return nil
 	}
 
-	cache.ll.MoveToFront(&list.Element{Value: k})
+	cache.ll.MoveToFront(r.linkedlistEle)
 
 	return r
 }
@@ -97,8 +98,8 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 
 	data.expiry = time.Now().Add(cache.ttl)
 
+	data.linkedlistEle = cache.ll.PushFront(k)
 	cache.records[k] = data
-	cache.ll.PushFront(k)
 
 	return nil
 }
