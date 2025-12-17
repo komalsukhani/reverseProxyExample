@@ -3,7 +3,7 @@ package config
 import "time"
 
 const (
-	DefaultUpstreamURL     = "http://example.com"
+	DefaultUpstreamURL     = "http://httpbin.org"
 	DefaultListenPort      = 8080
 	DefaultShutdownTimeout = 10 * time.Second
 
