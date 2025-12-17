@@ -79,7 +79,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		record := memcache.Record{
 			StatusCode: resp.StatusCode,
 			Body:       bytes.Clone(body),
-			Headers:    r.Header.Clone(),
+			Headers:    resp.Header.Clone(),
 		}
 
 		key := getCacheKey(r)
