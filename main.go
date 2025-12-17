@@ -16,10 +16,6 @@ import (
 	rproxy "github.com/komaldsukhani/reverseproxyexample/internal/reverseproxy"
 )
 
-const (
-	UpstreamURL = "http://example.com"
-)
-
 func main() {
 	var config config.Config
 
@@ -35,7 +31,7 @@ func main() {
 	addr := fmt.Sprintf(":%d", config.Proxy.ListenPort)
 
 	p := rproxy.ReverseProxy{
-		TargetURL: UpstreamURL,
+		TargetURL: config.Proxy.TargetURL,
 		Cache:     memcache.NewMemoryCache(config.Cache.TTL, config.Cache.MaxSize, config.Cache.MaxRecordSize),
 	}
 

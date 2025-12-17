@@ -3,7 +3,7 @@ package config
 import "time"
 
 const (
-	UpstreamURL            = "http://example.com"
+	DefaultUpstreamURL     = "http://example.com"
 	DefaultListenPort      = 8080
 	DefaultShutdownTimeout = 10 * time.Second
 
@@ -21,6 +21,7 @@ type Config struct {
 type ProxyConfig struct {
 	ListenPort      int
 	ShutdownTimeout time.Duration
+	TargetURL       string
 }
 
 type CacheConfig struct {
@@ -42,6 +43,10 @@ func (config *Config) SetDefaults() {
 
 	if config.Proxy.ShutdownTimeout == 0 {
 		config.Proxy.ShutdownTimeout = DefaultShutdownTimeout
+	}
+
+	if config.Proxy.TargetURL == "" {
+		config.Proxy.TargetURL = DefaultUpstreamURL
 	}
 
 	if config.Cache.TTL == 0 {
