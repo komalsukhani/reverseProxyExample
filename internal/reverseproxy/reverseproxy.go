@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 )
@@ -43,6 +44,9 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	outreq.Header = r.Header.Clone()
 
+	// remove hop-by-hop headers before sending to upstream
+	removeHopByHopHeaders(outreq.Header)
+
 	resp, err := http.DefaultClient.Do(outreq)
 	if err != nil {
 		slog.Error("request to upstream failed", "error", err)
@@ -60,6 +64,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	removeHopByHopHeaders(resp.Header)
+
 	for h, vals := range resp.Header {
 		for _, v := range vals {
 			rw.Header().Add(h, v)
@@ -68,7 +74,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	rw.Write(body)
 
-	//only cache get requests
+	//only cache get requests with 200 status code
 	if r.Method == http.MethodGet && resp.StatusCode == http.StatusOK {
 		record := memcache.Record{
 			StatusCode: resp.StatusCode,
@@ -87,4 +93,30 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 func getCacheKey(r *http.Request) string {
 	return r.Method + ":" + r.URL.String()
+}
+
+var hopByHopHeaders = []string{
+	"Connection",
+	"Proxy-Connection",
+	"Keep-Alive",
+	"Proxy-Authenticate",
+	"Proxy-Authorization",
+	"Te",
+	"Trailer",
+	"Transfer-Encoding",
+	"Upgrade",
+}
+
+func removeHopByHopHeaders(header http.Header) {
+	for _, vals := range header["Connection"] {
+		for v := range strings.SplitSeq(vals, ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				header.Del(v)
+			}
+		}
+
+		for _, h := range hopByHopHeaders {
+			header.Del(h)
+		}
+	}
 }
