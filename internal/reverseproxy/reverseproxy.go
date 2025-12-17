@@ -17,12 +17,12 @@ type ReverseProxy struct {
 }
 
 func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	//check if the request can be served from cache
+	// Check if the request can be served from cache.
 	if r.Method == http.MethodGet {
 		key := getCacheKey(r)
 		cachedResp := p.Cache.Get(key)
 		if cachedResp != nil {
-			slog.Debug("Request served from the cache")
+			slog.Debug("Request served from the cache", "key", key, "status", cachedResp.StatusCode)
 
 			for h, vals := range cachedResp.Headers {
 				for _, v := range vals {
@@ -38,6 +38,10 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			} else {
 				return
 			}
+		}
+		// cache miss
+		if cachedResp == nil {
+			slog.Debug("Cache miss", "key", key)
 		}
 	}
 
@@ -57,8 +61,9 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	outreq.Header = r.Header.Clone()
+	slog.Debug("Prepared outbound request", "method", outreq.Method, "url", outreq.URL.String())
 
-	// remove hop-by-hop headers before sending to upstream
+	// Remove hop-by-hop headers before sending to upstream
 	removeHopByHopHeaders(outreq.Header)
 
 	resp, err := http.DefaultClient.Do(outreq)
@@ -96,7 +101,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//only cache get requests with 200 status code
+	// Caching only GET requests with 200 OK response
 	if r.Method == http.MethodGet && resp.StatusCode == http.StatusOK {
 		record := memcache.Record{
 			StatusCode: resp.StatusCode,
@@ -107,6 +112,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		key := getCacheKey(r)
 		if err := p.Cache.Set(key, &record); err != nil {
 			slog.Debug("failed to cache request", "error", err)
+		} else {
+			slog.Debug("Request cached", "key", key, "size", record.Calsize())
 		}
 	}
 
@@ -161,6 +168,9 @@ var hopByHopHeaders = []string{
 	"Upgrade",
 }
 
+// RFC-conformant removal of hop-by-hop headers. We look for header
+// values in the "Connection" header that name additional single headers
+// to drop, trim & drop them, then drop known hop-by-hop header names.
 func removeHopByHopHeaders(header http.Header) {
 	for _, vals := range header["Connection"] {
 		for v := range strings.SplitSeq(vals, ",") {
