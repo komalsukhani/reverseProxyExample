@@ -3,9 +3,7 @@
 BINARY=./bin/reverseproxy
 CMD=./cmd/reverseproxy
 
-.PHONY: all build run run-bin test test-verbose fmt vet coverage clean help
-
-all: build
+.PHONY: build run test fmt vet clean help
 
 build:
 	@mkdir -p ./bin
@@ -27,7 +25,7 @@ vet:
 	go vet ./...
 
 clean:
-	rm -rf ./bin coverage.out
+	rm -rf ./bin
 
 help:
 	@echo "Available targets: build run run-bin test fmt vet clean"
