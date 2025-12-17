@@ -32,9 +32,12 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 			rw.WriteHeader(cachedResp.StatusCode)
 
-			rw.Write(cachedResp.Body)
-
-			return
+			_, err := rw.Write(cachedResp.Body)
+			if err != nil {
+				slog.Error("failed to write cached response body", "error", err)
+			} else {
+				return
+			}
 		}
 	}
 
@@ -45,7 +48,13 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "failed to handle request", http.StatusBadGateway)
 		return
 	}
-	outreq.URL = joinURL(r.URL, p.TargetURL)
+
+	if outreq.URL, err = joinURL(r.URL, p.TargetURL); err != nil {
+		slog.Error("failed to join target url and request path", "error", err)
+
+		http.Error(rw, "failed to handle request", http.StatusBadGateway)
+		return
+	}
 
 	outreq.Header = r.Header.Clone()
 
@@ -59,15 +68,19 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		http.Error(rw, "failed to handle request", http.StatusBadGateway)
 		return
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
-	defer resp.Body.Close()
 	if err != nil {
 		slog.Error("failed to read response body of upstream request", "error", err)
 
 		http.Error(rw, "failed to handle request", http.StatusBadGateway)
 		return
 	}
+
+	rw.WriteHeader(resp.StatusCode)
 
 	removeHopByHopHeaders(resp.Header)
 
@@ -77,7 +90,12 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rw.Write(body)
+	if _, err := rw.Write(body); err != nil {
+		slog.Error("failed to write response body", "error", err)
+
+		http.Error(rw, "failed to handle request", http.StatusBadGateway)
+		return
+	}
 
 	//only cache get requests with 200 status code
 	if r.Method == http.MethodGet && resp.StatusCode == http.StatusOK {
@@ -100,12 +118,12 @@ func getCacheKey(r *http.Request) string {
 	return r.Method + ":" + r.URL.String()
 }
 
-func joinURL(req *url.URL, targetURL string) *url.URL {
+func joinURL(req *url.URL, targetURL string) (*url.URL, error) {
 	var joinedURL url.URL
 
 	parsedURL, err := url.Parse(targetURL)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	joinedURL.Host = parsedURL.Host
@@ -129,7 +147,7 @@ func joinURL(req *url.URL, targetURL string) *url.URL {
 		joinedURL.RawQuery = parsedURL.RawQuery + "&" + req.RawQuery
 	}
 
-	return &joinedURL
+	return &joinedURL, nil
 }
 
 var hopByHopHeaders = []string{

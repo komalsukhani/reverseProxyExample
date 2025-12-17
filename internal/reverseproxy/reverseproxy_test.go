@@ -23,7 +23,6 @@ func TestCachedRequest(t *testing.T) {
 		atomic.AddInt32(&upstreamCalls, 1)
 		w.Header().Add("Upstream", "true")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello World"))
 	}))
 	defer srv.Close()
 
@@ -44,11 +43,11 @@ func TestCachedRequest(t *testing.T) {
 
 	var body1, body2 []byte
 	body1, err = io.ReadAll(resp1.Body)
-	defer resp1.Body.Close()
+	defer func() { _ = resp1.Body.Close() }()
 	eval.NoErr(err)
 
 	body2, err = io.ReadAll(resp2.Body)
-	defer resp2.Body.Close()
+	defer func() { _ = resp2.Body.Close() }()
 	eval.NoErr(err)
 	eval.True(compareHeaders(t, resp1.Header, resp2.Header))
 
@@ -59,7 +58,7 @@ func TestCachedRequest(t *testing.T) {
 }
 
 func compareHeaders(t *testing.T, h1, h2 http.Header) bool {
-	if !(len(h1) == len(h2)) {
+	if len(h1) != len(h2) {
 		return false
 	}
 
@@ -80,7 +79,6 @@ func TestCacheNonSupportedMethods(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello World"))
 	}))
 	defer srv.Close()
 
@@ -108,7 +106,6 @@ func TestCachedNonSupportedResponseCode(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello World"))
 	}))
 	defer srv.Close()
 
@@ -134,7 +131,6 @@ func TestCacheTTL(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&upstreamCalls, 1)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello World"))
 	}))
 	defer srv.Close()
 
@@ -177,7 +173,9 @@ func TestJoinURL(t *testing.T) {
 	for _, tc := range testcases {
 		reqURL, err := url.Parse(tc.reqPath)
 		eval.NoErr(err)
-		u := joinURL(reqURL, tc.targetURL)
+
+		u, err := joinURL(reqURL, tc.targetURL)
+		eval.NoErr(err)
 
 		eval.Equal(u.String(), tc.wantFinal)
 	}
