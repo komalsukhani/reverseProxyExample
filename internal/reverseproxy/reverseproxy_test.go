@@ -27,7 +27,7 @@ func TestCachedRequest(t *testing.T) {
 	defer srv.Close()
 
 	rproxy := ReverseProxy{
-		TargetURL: srv.URL,
+		targetURL: srv.URL,
 		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
 	}
 
@@ -83,7 +83,7 @@ func TestCacheNonSupportedMethods(t *testing.T) {
 	defer srv.Close()
 
 	rproxy := ReverseProxy{
-		TargetURL: srv.URL,
+		targetURL: srv.URL,
 		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
 	}
 
@@ -110,7 +110,7 @@ func TestCachedNonSupportedResponseCode(t *testing.T) {
 	defer srv.Close()
 
 	rproxy := ReverseProxy{
-		TargetURL: srv.URL,
+		targetURL: srv.URL,
 		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
 	}
 
@@ -135,7 +135,7 @@ func TestCacheTTL(t *testing.T) {
 	defer srv.Close()
 
 	rproxy := ReverseProxy{
-		TargetURL: srv.URL,
+		targetURL: srv.URL,
 		Cache:     memcache.NewMemoryCache(30*time.Second, 1*1024*1024, 1024),
 	}
 

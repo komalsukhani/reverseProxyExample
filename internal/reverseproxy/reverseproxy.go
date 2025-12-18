@@ -10,12 +10,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/komaldsukhani/reverseproxyexample/internal/config"
 	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 )
 
 type ReverseProxy struct {
-	TargetURL string
+	targetURL string
 	Cache     *memcache.MemoryCache
+	transport *http.Transport
+}
+
+func New(config *config.Config) *ReverseProxy {
+	return &ReverseProxy{
+		targetURL: config.Proxy.TargetURL,
+		Cache:     memcache.NewMemoryCache(config.Cache.TTL, config.Cache.MaxSize, config.Cache.MaxRecordSize),
+		transport: newTransport(config),
+	}
 }
 
 func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -55,7 +65,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if outreq.URL, err = joinURL(r.URL, p.TargetURL); err != nil {
+	if outreq.URL, err = joinURL(r.URL, p.targetURL); err != nil {
 		slog.Error("failed to join target url and request path", "error", err)
 
 		http.Error(rw, "failed to handle request", http.StatusBadGateway)
@@ -68,8 +78,7 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// Remove hop-by-hop headers before sending to upstream
 	removeHopByHopHeaders(outreq.Header)
 
-	transport := newTransport()
-	resp, err := transport.RoundTrip(outreq)
+	resp, err := p.transport.RoundTrip(outreq)
 	if err != nil {
 		slog.Error("request to upstream failed", "error", err)
 
@@ -188,15 +197,15 @@ func removeHopByHopHeaders(header http.Header) {
 	}
 }
 
-func newTransport() *http.Transport {
+func newTransport(config *config.Config) *http.Transport {
 	return &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   5 * time.Second,
+			Timeout:   config.Proxy.Transport.DialTimeout,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 20,
-		IdleConnTimeout:     90 * time.Second,
+		MaxIdleConns:        config.Proxy.Transport.MaxIdleConnections,
+		MaxIdleConnsPerHost: config.Proxy.Transport.MaxIdleConnsPerHost,
+		IdleConnTimeout:     config.Proxy.Transport.IdleConnTimeout,
 	}
 }

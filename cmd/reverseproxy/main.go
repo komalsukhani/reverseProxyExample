@@ -12,7 +12,6 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/komaldsukhani/reverseproxyexample/internal/config"
-	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 	rproxy "github.com/komaldsukhani/reverseproxyexample/internal/reverseproxy"
 )
 
@@ -28,19 +27,16 @@ func main() {
 	setupLogger(&config)
 	slog.Debug("Configured logger", "loglevel", config.LogLevel)
 
-	addr := fmt.Sprintf(":%d", config.Proxy.ServerConfig.ListenPort)
+	addr := fmt.Sprintf(":%d", config.Proxy.Server.ListenPort)
 
-	p := rproxy.ReverseProxy{
-		TargetURL: config.Proxy.TargetURL,
-		Cache:     memcache.NewMemoryCache(config.Cache.TTL, config.Cache.MaxSize, config.Cache.MaxRecordSize),
-	}
+	p := rproxy.New(&config)
 
 	srv := http.Server{
 		Addr:         addr,
-		Handler:      &p,
-		ReadTimeout:  config.Proxy.ServerConfig.ReadTimeout,
-		WriteTimeout: config.Proxy.ServerConfig.WriteTimeout,
-		IdleTimeout:  config.Proxy.ServerConfig.IdleTimeout,
+		Handler:      p,
+		ReadTimeout:  config.Proxy.Server.ReadTimeout,
+		WriteTimeout: config.Proxy.Server.WriteTimeout,
+		IdleTimeout:  config.Proxy.Server.IdleTimeout,
 	}
 
 	go func() {
@@ -63,7 +59,7 @@ func gracefulShutdown(srv *http.Server, config *config.Config) {
 
 	slog.Info("Shutting down the server")
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.Proxy.ServerConfig.ShutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Proxy.Server.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
