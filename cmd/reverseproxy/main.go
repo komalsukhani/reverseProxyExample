@@ -28,7 +28,7 @@ func main() {
 	setupLogger(&config)
 	slog.Debug("Configured logger", "loglevel", config.LogLevel)
 
-	addr := fmt.Sprintf(":%d", config.Proxy.ListenPort)
+	addr := fmt.Sprintf(":%d", config.Proxy.ServerConfig.ListenPort)
 
 	p := rproxy.ReverseProxy{
 		TargetURL: config.Proxy.TargetURL,
@@ -36,8 +36,11 @@ func main() {
 	}
 
 	srv := http.Server{
-		Addr:    addr,
-		Handler: &p,
+		Addr:         addr,
+		Handler:      &p,
+		ReadTimeout:  config.Proxy.ServerConfig.ReadTimeout,
+		WriteTimeout: config.Proxy.ServerConfig.WriteTimeout,
+		IdleTimeout:  config.Proxy.ServerConfig.IdleTimeout,
 	}
 
 	go func() {
@@ -60,7 +63,7 @@ func gracefulShutdown(srv *http.Server, config *config.Config) {
 
 	slog.Info("Shutting down the server")
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.Proxy.ShutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), config.Proxy.ServerConfig.ShutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
