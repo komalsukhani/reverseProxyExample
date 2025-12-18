@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
 )
@@ -66,7 +68,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// Remove hop-by-hop headers before sending to upstream
 	removeHopByHopHeaders(outreq.Header)
 
-	resp, err := http.DefaultClient.Do(outreq)
+	transport := newTransport()
+	resp, err := transport.RoundTrip(outreq)
 	if err != nil {
 		slog.Error("request to upstream failed", "error", err)
 
@@ -182,5 +185,18 @@ func removeHopByHopHeaders(header http.Header) {
 		for _, h := range hopByHopHeaders {
 			header.Del(h)
 		}
+	}
+}
+
+func newTransport() *http.Transport {
+	return &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout:     90 * time.Second,
 	}
 }
