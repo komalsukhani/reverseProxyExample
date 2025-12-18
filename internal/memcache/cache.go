@@ -80,6 +80,8 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 	if ok {
 		oldSize := existingRecord.size
 		cache.remainingCapacity += oldSize
+
+		cache.ll.Remove(existingRecord.linkedlistEle)
 	}
 
 	// Keep deleting old entry in cache as cache has reached it's limit
@@ -98,11 +100,7 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 
 	data.expiry = time.Now().Add(cache.ttl)
 
-	if existingRecord != nil {
-		cache.ll.MoveToFront(existingRecord.linkedlistEle)
-	} else {
-		data.linkedlistEle = cache.ll.PushFront(k)
-	}
+	data.linkedlistEle = cache.ll.PushFront(k)
 
 	cache.records[k] = data
 
