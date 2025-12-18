@@ -71,7 +71,7 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 
 	data.size = data.Calsize()
 
-	//not caching request if it exceeds maxRequestSize limit
+	// Not caching request if it exceeds maxRequestSize limit
 	if data.size > cache.maxRecordSize {
 		return ErrMaxRecordSizeExceed
 	}
@@ -82,8 +82,8 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 		cache.remainingCapacity += oldSize
 	}
 
-	//keep deleting old entry in cache as cache has reached it's limit
-	for data.size > cache.remainingCapacity {
+	// Keep deleting old entry in cache as cache has reached it's limit
+	for data.size > cache.remainingCapacity && cache.ll.Len() != 0 {
 		oldest := cache.ll.Back()
 		oldestRecordKey := oldest.Value.(string)
 
@@ -98,7 +98,12 @@ func (cache *MemoryCache) Set(k string, data *Record) error {
 
 	data.expiry = time.Now().Add(cache.ttl)
 
-	data.linkedlistEle = cache.ll.PushFront(k)
+	if existingRecord != nil {
+		cache.ll.MoveToFront(existingRecord.linkedlistEle)
+	} else {
+		data.linkedlistEle = cache.ll.PushFront(k)
+	}
+
 	cache.records[k] = data
 
 	return nil

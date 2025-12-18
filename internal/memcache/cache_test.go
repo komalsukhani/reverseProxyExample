@@ -34,13 +34,21 @@ func TestCacheMaxSize(t *testing.T) {
 	eval.Equal(c.Count(), 2)
 	eval.Equal(c.remainingCapacity, 10)
 
-	//one record will be removed as capacity is 10
+	// one record will be removed as capacity is 10
 	err = c.Set("3", &Record{
 		Body: []byte("123456"),
 	})
 	eval.NoErr(err)
 
 	eval.Equal(c.Count(), 2)
+	eval.Equal(c.remainingCapacity, 10)
+
+	err = c.Set("4", &Record{
+		Body: make([]byte, 50),
+	})
+	eval.NoErr(err)
+
+	eval.Equal(c.Count(), 1)
 	eval.Equal(c.remainingCapacity, 10)
 }
 
