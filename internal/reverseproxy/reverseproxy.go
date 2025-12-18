@@ -30,8 +30,9 @@ func New(config *config.Config) *ReverseProxy {
 
 func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// Check if the request can be served from cache.
-	if r.Method == http.MethodGet {
+	if canServeFromCache(r) {
 		key := getCacheKey(r)
+
 		cachedResp := p.Cache.Get(key)
 		if cachedResp != nil {
 			slog.Debug("Request served from the cache", "key", key, "status", cachedResp.StatusCode)
@@ -50,9 +51,8 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			} else {
 				return
 			}
-		}
-		// cache miss
-		if cachedResp == nil {
+		} else {
+			// cache miss
 			slog.Debug("Cache miss", "key", key)
 		}
 	}
@@ -113,15 +113,17 @@ func (p *ReverseProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Caching only GET requests with 200 OK response
-	if r.Method == http.MethodGet && resp.StatusCode == http.StatusOK {
+	if canCacheRequest(r, resp) {
+		key := getCacheKey(r)
+
+		slog.Debug("Caching the request", "key", key)
+
 		record := memcache.Record{
 			StatusCode: resp.StatusCode,
 			Body:       bytes.Clone(body),
 			Headers:    resp.Header.Clone(),
 		}
 
-		key := getCacheKey(r)
 		if err := p.Cache.Set(key, &record); err != nil {
 			slog.Debug("failed to cache request", "error", err)
 		} else {
@@ -195,6 +197,57 @@ func removeHopByHopHeaders(header http.Header) {
 			header.Del(h)
 		}
 	}
+}
+
+func canServeFromCache(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+
+	h := r.Header.Get("Cache-Control")
+	// Check if the request has a "no-cache" directive
+	if strings.Contains(h, "no-cache") {
+		return false
+
+	}
+
+	return true
+}
+
+func canCacheRequest(r *http.Request, resp *http.Response) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+
+	if r.Header.Get("Authorization") != "" {
+		return false
+	}
+
+	h := r.Header.Get("Cache-Control")
+	if strings.Contains(h, "no-store") {
+		return false
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	if h := resp.Header.Get("Cache-Control"); h != "" {
+		// Check if the response has a "no-cache" directive
+		if strings.Contains(h, "no-cache") {
+			return false
+		}
+
+		if strings.Contains(h, "no-store") {
+			return false
+		}
+
+		if strings.Contains(h, "private") {
+			return false
+		}
+	}
+
+	return true
 }
 
 func newTransport(config *config.Config) *http.Transport {

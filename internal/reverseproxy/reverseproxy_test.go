@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/komaldsukhani/reverseproxyexample/internal/memcache"
+	"github.com/komaldsukhani/reverseproxyexample/internal/config"
 	"github.com/matryer/is"
 )
 
@@ -26,12 +26,18 @@ func TestCachedRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rproxy := ReverseProxy{
-		targetURL: srv.URL,
-		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
-	}
+	rproxy := New(&config.Config{
+		Proxy: config.ProxyConfig{
+			TargetURL: srv.URL,
+		},
+		Cache: config.CacheConfig{
+			TTL:           5 * time.Minute,
+			MaxSize:       1 * 1024 * 1024,
+			MaxRecordSize: 1024,
+		},
+	})
 
-	proxysrv := httptest.NewServer(&rproxy)
+	proxysrv := httptest.NewServer(rproxy)
 	defer proxysrv.Close()
 
 	resp1, err := http.Get(proxysrv.URL)
@@ -82,12 +88,13 @@ func TestCacheNonSupportedMethods(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rproxy := ReverseProxy{
-		targetURL: srv.URL,
-		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
-	}
+	rproxy := New(&config.Config{
+		Proxy: config.ProxyConfig{
+			TargetURL: srv.URL,
+		},
+	})
 
-	proxysrv := httptest.NewServer(&rproxy)
+	proxysrv := httptest.NewServer(rproxy)
 	defer proxysrv.Close()
 
 	_, err := http.Post(proxysrv.URL, "", nil)
@@ -109,12 +116,13 @@ func TestCachedNonSupportedResponseCode(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rproxy := ReverseProxy{
-		targetURL: srv.URL,
-		Cache:     memcache.NewMemoryCache(5*time.Minute, 1*1024*1024, 1024),
-	}
+	rproxy := New(&config.Config{
+		Proxy: config.ProxyConfig{
+			TargetURL: srv.URL,
+		},
+	})
 
-	proxysrv := httptest.NewServer(&rproxy)
+	proxysrv := httptest.NewServer(rproxy)
 	defer proxysrv.Close()
 
 	_, err := http.Get(proxysrv.URL + "/protected")
@@ -134,12 +142,16 @@ func TestCacheTTL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rproxy := ReverseProxy{
-		targetURL: srv.URL,
-		Cache:     memcache.NewMemoryCache(30*time.Second, 1*1024*1024, 1024),
-	}
+	rproxy := New(&config.Config{
+		Proxy: config.ProxyConfig{
+			TargetURL: srv.URL,
+		},
+		Cache: config.CacheConfig{
+			TTL: 30 * time.Second,
+		},
+	})
 
-	proxysrv := httptest.NewServer(&rproxy)
+	proxysrv := httptest.NewServer(rproxy)
 	defer proxysrv.Close()
 
 	_, err := http.Get(proxysrv.URL)
@@ -170,13 +182,54 @@ func TestJoinURL(t *testing.T) {
 		"request path with special characters":                           {"http://example.com/api", "foo%2Fbar", "http://example.com/api/foo%2Fbar"},
 	}
 
-	for _, tc := range testcases {
-		reqURL, err := url.Parse(tc.reqPath)
-		eval.NoErr(err)
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			reqURL, err := url.Parse(tc.reqPath)
+			eval.NoErr(err)
 
-		u, err := joinURL(reqURL, tc.targetURL)
-		eval.NoErr(err)
+			u, err := joinURL(reqURL, tc.targetURL)
+			eval.NoErr(err)
 
-		eval.Equal(u.String(), tc.wantFinal)
+			eval.Equal(u.String(), tc.wantFinal)
+		})
+	}
+}
+
+func TestCanCacheRequest(t *testing.T) {
+	eval := is.New(t)
+
+	testcases := map[string]struct {
+		method       string
+		headers      http.Header
+		statusCode   int
+		wantCanCache bool
+	}{
+		"GET request with 200 OK":                 {method: http.MethodGet, statusCode: http.StatusOK, wantCanCache: true},
+		"HEAD request with 200 OK":                {method: http.MethodHead, statusCode: http.StatusOK, wantCanCache: true},
+		"GET request with 404 Not Found":          {method: http.MethodGet, statusCode: http.StatusNotFound, wantCanCache: false},
+		"POST request with 200 OK":                {method: http.MethodPost, statusCode: http.StatusOK, wantCanCache: false},
+		"GET request with no-store cache control": {method: http.MethodGet, headers: http.Header{"Cache-Control": []string{"no-store"}}, statusCode: http.StatusOK, wantCanCache: false},
+		"GET request with no-cache cache control": {method: http.MethodGet, headers: http.Header{"Cache-Control": []string{"no-cache"}}, statusCode: http.StatusOK, wantCanCache: false},
+		"Get request with private cache control":  {method: http.MethodGet, headers: http.Header{"Cache-Control": []string{"private"}}, statusCode: http.StatusOK, wantCanCache: false},
+		"GET request with Authorization header":   {method: http.MethodGet, headers: http.Header{"Authorization": []string{"Bearer token"}}, statusCode: http.StatusOK, wantCanCache: true},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			req, err := http.NewRequest(tc.method, "http://example.com", nil)
+			eval.NoErr(err)
+
+			resp := &http.Response{
+				StatusCode: tc.statusCode,
+				Header:     make(http.Header),
+			}
+
+			if tc.headers != nil {
+				resp.Header = tc.headers.Clone()
+			}
+
+			canCache := canCacheRequest(req, resp)
+			eval.Equal(canCache, tc.wantCanCache)
+		})
 	}
 }
